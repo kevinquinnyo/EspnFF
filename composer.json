@@ -13,9 +13,23 @@
 	],
 
 	"require": {
-	    "sunra/php-simple-html-dom-parser": "v1.5.0"
-	    },
+        "cakephp/core": "~3.5",
+        "guzzlehttp/guzzle": "^6.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "~5.5"
+    },
 	"autoload": {
 		"psr-4": {"FF\\": "src/"}
-	}
+	},
+    "autoload-dev": {
+        "psr-4": {
+          "FF\\Test\\": "tests"
+        }
+    },
+    "scripts": {
+        "cs": "phpcs --colors -p --standard=phpcs.xml.dist",
+        "cs-fix": "phpcbf --colors --standard=phpcs.xml.dist",
+        "test": "phpunit --no-coverage --colors=always --configuration phpunit.xml.dist"
+    }
 }
