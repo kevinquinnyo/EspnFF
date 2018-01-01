@@ -17,7 +17,7 @@ class Espn
     protected $_defaultConfig = [
         'apiKeyUrl' => 'https://registerdisney.go.com/jgc/v5/client/ESPN-FANTASYLM-PROD/api-key?langPref=en-US',
         'cookieUrl' => 'https://ha.registerdisney.go.com/jgc/v5/client/ESPN-FANTASYLM-PROD/guest/login?langPref=en-US',
-        'cookieDomain' => '.go.espn.com',
+        'cookieDomain' => '.espn.com',
         'auth' => [
             'username' => null,
             'password' => null,
@@ -25,17 +25,17 @@ class Espn
         'leagueId' => null,
         'seasonId' => null,
         'guzzle' => [
-            'base_url' => 'http://games.espn.com/ffl/api/v2/',
+            'base_uri' => 'http://games.espn.com/ffl/api/v2/',
             'headers' => [
                 'User-Agent' => 'kevinquinnyo/EspnFF API Client',
-            ],
+            ]
         ],
     ];
 
     public function __construct(array $config = [])
     {
         $this->config($config);
-        $this->cookies = $this->getCookies();
+        $this->setCookies();
     }
 
     public function getClient()
@@ -43,8 +43,7 @@ class Espn
         $config = $this->getConfig();
 
         $options = $config['guzzle'];
-        $cookieDomain = $config['cookieDomain'];
-        $options['cookies'] = CookieJar::fromArray($this->cookies, $cookieDomain);
+        $options['cookies'] = $this->cookies;
 
         if ($this->client === null) {
             $this->client = new Client($options);
@@ -67,7 +66,7 @@ class Espn
         return $responseHeaders['api-key'][0];
     }
 
-    protected function getCookies()
+    protected function setCookies()
     {
         $config = $this->getConfig();
         $this->apiKey = $this->getApiKey();
@@ -94,9 +93,14 @@ class Espn
             throw new RuntimeException('Unable to extract authorization cookies.');
         }
 
-        return [
-            'swid' => $json->data->profile->swid,
-            's2' => $json->data->s2,
+        $cookies = [
+            'SWID' => $json->data->profile->swid,
+            'espn_s2' => $json->data->s2,
         ];
+
+        $cookieDomain = $config['cookieDomain'];
+        $this->cookies = CookieJar::fromArray($cookies, $cookieDomain);
+
+        return $this;
     }
 }
