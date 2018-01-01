@@ -1,132 +1,102 @@
 <?php
-
 namespace FF;
 
-class Espn {
+use Cake\Core\InstanceConfigTrait;
+use GuzzleHttp\Client;
+use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\RequestOptions;
 
-	protected $_options = [
+class Espn
+{
+    use InstanceConfigTrait;
 
-		'url' => null,
-		'username' => null,
-		'password' => null
-	
-	];
+    protected $client = null;
+    protected $apiKey = null;
+    protected $cookies = null;
 
-	protected $_postfields = [
+    protected $_defaultConfig = [
+        'apiKeyUrl' => 'https://registerdisney.go.com/jgc/v5/client/ESPN-FANTASYLM-PROD/api-key?langPref=en-US',
+        'cookieUrl' => 'https://ha.registerdisney.go.com/jgc/v5/client/ESPN-FANTASYLM-PROD/guest/login?langPref=en-US',
+        'cookieDomain' => '.go.espn.com',
+        'auth' => [
+            'username' => null,
+            'password' => null,
+        ],
+        'leagueId' => null,
+        'seasonId' => null,
+        'guzzle' => [
+            'base_url' => 'http://games.espn.com/ffl/api/v2/',
+            'headers' => [
+                'User-Agent' => 'kevinquinnyo/EspnFF API Client',
+            ],
+        ],
+    ];
 
-		'failedAttempts' => '0',
-		'SUBMIT' => '1',
-		'cookieDomain' => '.go.com',
-		'multipleDomains' => 'true',
-		'aff_code' => 'espn_fantgames',
-	];
+    public function __construct(array $config = [])
+    {
+        $this->config($config);
+        $this->cookies = $this->getCookies();
+    }
 
-	public function __construct($login_url, array $options = []) {
+    public function getClient()
+    {
+        $config = $this->getConfig();
 
-		if(is_array($login_url)) {
-			$this->setOption('login_url', 'https://r.espn.go.com/espn/memberservices/pc/login');
-			$options = $login_url;
-		} else {
-			$this->setOption('login_url', $login_url);
-		}
-		
+        $options = $config['guzzle'];
+        $cookieDomain = $config['cookieDomain'];
+        $options['cookies'] = CookieJar::fromArray($this->cookies, $cookieDomain);
 
-		if(!isset($options['username']) || !isset($options['password'])) {
-			throw new \Exception('You must specify a username and password when instantiating the Espn class');
-		}
+        if ($this->client === null) {
+            $this->client = new Client($options);
+        }
 
-		$this->setOption('username', $options['username']);
-		$this->setOption('password', $options['password']);
-		$this->setOption('cookie', dirname(__DIR__).'/tmp/cookies.txt');
+        return $this->client;
+    }
 
-	}
+    protected function getApiKey()
+    {
+        $apiKeyUrl = $this->config('apiKeyUrl');
 
-	public function setOption($name, $value = null) {
-		if(is_array($name)) {
-			foreach($name as $key => $value) {
-				$this->setOption($key, $value);
-			}
-			return $this;
-		}
-	
-		$this->_options[$name] = $value;
-		return $name;
-	}
+        $client = new Client();
+        $responseHeaders = $client->post($apiKeyUrl)->getHeaders();
 
-	public function setPostfield($name, $value = null) {
-		if(is_array($name)) {
-			foreach($name as $key => $value) {
-				$this->setPostfield($key, $value);
-			}
-			return $this;
-		}
-		$this->_postfields[$name] = $value;
-		return $name;
-	}
+        if (isset($responseHeaders['api-key']) === false) {
+            throw RuntimeException('Unable to fetch API key.');
+        }
 
-	public function getOption($name = null, $default = null) {
-		if ($name === null) {
-			$options = $this->_options;
-			return $options;
-		}
-		if (array_key_exists($name, $this->_options)) {
-			return $this->_options[$name];
-		}
-		return $default;
-	}
+        return $responseHeaders['api-key'][0];
+    }
 
-	public function login() {
+    protected function getCookies()
+    {
+        $config = $this->getConfig();
+        $this->apiKey = $this->getApiKey();
 
-		$data = [
+        $cookieUrl = $config['cookieUrl'];
+        $username = $config['auth']['username'];
+        $password = $config['auth']['password'];
 
-			'url' => $this->getOption('login_url'),	
-			'params' => [	
-				'submit' => 'Sign In',
-			]
-		];
+        $data = [
+            RequestOptions::JSON => [
+                'loginValue' => $username,
+                'password' => $password,
+            ],
+            RequestOptions::HEADERS => [
+               'authorization' => sprintf('%s %s', 'APIKEY', $this->apiKey),
+            ],
+        ];
 
-		$result = $this->call($data);
+        $client = new Client();
+        $response = $client->post($cookieUrl, $data);
+        $json = json_decode($response->getBody());
 
-		return isset($result) ? $result : false;
-		
-	}
+        if (isset($json->data) === false) {
+            throw new RuntimeException('Unable to extract authorization cookies.');
+        }
 
-	public function call(array $options = []) {
-		
-		$this->setPostfield('username', $this->getOption('username'));
-		$this->setPostfield('password', $this->getOption('password'));
-
-		$this->setPostfield($options['params']);
-
-		$this->setOption('url', $options['url']);
-
-		$Curl = curl_init($options['url']);
-		$query_string = http_build_query($this->_postfields);
-
-		curl_setopt($Curl, CURLOPT_URL, $this->getOption('url'));
-		curl_setopt($Curl, CURLOPT_POST, 1);
-		curl_setopt($Curl, CURLOPT_TIMEOUT, 30);
-		curl_setopt($Curl, CURLOPT_RETURNTRANSFER, 1);
-		curl_setopt($Curl, CURLOPT_POSTFIELDS, $query_string);
-		curl_setopt($Curl, CURLOPT_SSL_VERIFYHOST, 0);
-		curl_setopt($Curl, CURLOPT_SSL_VERIFYPEER, 0);
-		curl_setopt($Curl, CURLOPT_FOLLOWLOCATION, true);
-		curl_setopt($Curl, CURLOPT_COOKIEJAR, $this->getOption('cookie'));
-		
-		$response = curl_exec($Curl);
-		if (!$response) {
-			$message = curl_error($Curl);
-			curl_close($Curl);
-			throw new \RuntimeException($message);
-		}
-
-		$this->_content['size'] = curl_getinfo($Curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
-		$this->_content['type'] = curl_getinfo($Curl, CURLINFO_CONTENT_TYPE);
-
-		//curl_close($Curl);
-		return($response);
-	}
-
+        return [
+            'swid' => $json->data->profile->swid,
+            's2' => $json->data->s2,
+        ];
+    }
 }
-
-?>
