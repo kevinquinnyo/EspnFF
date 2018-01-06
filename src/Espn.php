@@ -27,7 +27,7 @@ class Espn
         'guzzle' => [
             'base_uri' => 'http://games.espn.com/ffl/api/v2/',
             'headers' => [
-                'User-Agent' => 'kevinquinnyo/EspnFF API Client',
+                'User-Agent' => 'Please give us a real API so we don\'t have to parse the DOM :(',
             ]
         ],
     ];
